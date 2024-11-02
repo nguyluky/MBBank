@@ -38,11 +38,6 @@ declare class MB {
     */
     readonly username: string;
     /**
-     * @readonly
-     * Your MB account username.
-    */
-    readonly keyApi: string | undefined;
-    /**
     * @readonly
     * Your MB account password.
     */
@@ -52,6 +47,11 @@ declare class MB {
      * MB-returned Session ID. Use it to validate the request.
     */
     private sessionId;
+    /**
+    * @private
+    * funstion handel solce captcha
+    */
+    private solveCaptchaHandler?;
     /**
     * @private
     * Your non-unique, time-based Device ID.
@@ -75,8 +75,12 @@ declare class MB {
     constructor(data: {
         username: string;
         password: string;
-        keyApi?: string;
     });
+    /**
+     * set solve captcha function default is use tesseract-ocr local
+     * @param handler funstion that handel solve captcha login
+     */
+    setSolveCaptchaHandler(handler: (imgBase64: string) => Promise<string>): void;
     /**
      * A private function to process MB's captcha and get Session ID.
      */
@@ -86,12 +90,6 @@ declare class MB {
      * @returns The reference ID that is required by MB.
      */
     private getRefNo;
-    private solveCAPTCHAwithFreeOcrApi;
-    /**
-     * giải captch
-     * @returns string
-     */
-    private solveCAPTCHAwithLocal;
     private mbRequest;
     /**
      * Gets your account's balance info.

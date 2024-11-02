@@ -604,6 +604,30 @@ function LoadWasm_default(wasmBytes, requestData, args1) {
 __name(LoadWasm_default, "default");
 
 // src/MB.ts
+async function defaultSolveCaptcha(imgBase64) {
+  let captchaBuffer = Buffer.from(imgBase64, "base64");
+  const captchaImagePRCLine1 = await (0, import_replace_color.default)({
+    image: captchaBuffer,
+    colors: {
+      type: "hex",
+      targetColor: "#847069",
+      replaceColor: "#ffffff"
+    }
+  });
+  captchaBuffer = await captchaImagePRCLine1.getBufferAsync(import_jimp.default.MIME_PNG);
+  const captchaImagePRCLine2 = await (0, import_replace_color.default)({
+    image: captchaBuffer,
+    colors: {
+      type: "hex",
+      targetColor: "#ffe3d5",
+      replaceColor: "#ffffff"
+    }
+  });
+  captchaBuffer = await captchaImagePRCLine2.getBufferAsync(import_jimp.default.MIME_PNG);
+  const captchaContent = (await (0, import_node_tesseract_ocr.recognize)(captchaBuffer, defaultTesseractConfig)).replaceAll("\n", "").replaceAll(" ", "").slice(0, -1);
+  return captchaContent;
+}
+__name(defaultSolveCaptcha, "defaultSolveCaptcha");
 var MB = class {
   static {
     __name(this, "MB");
@@ -614,11 +638,6 @@ var MB = class {
   */
   username;
   /**
-   * @readonly
-   * Your MB account username.
-  */
-  keyApi;
-  /**
   * @readonly
   * Your MB account password.
   */
@@ -628,6 +647,11 @@ var MB = class {
    * MB-returned Session ID. Use it to validate the request.
   */
   sessionId;
+  /**
+  * @private
+  * funstion handel solce captcha
+  */
+  solveCaptchaHandler;
   /**
   * @private
   * Your non-unique, time-based Device ID.
@@ -650,9 +674,15 @@ var MB = class {
    */
   constructor(data) {
     if (!data.username || !data.password) throw new Error("You must define at least a MB account to use with this library!");
-    this.keyApi = data.keyApi;
     this.username = data.username;
     this.password = data.password;
+  }
+  /**
+   * set solve captcha function default is use tesseract-ocr local
+   * @param handler funstion that handel solve captcha login
+   */
+  setSolveCaptchaHandler(handler) {
+    this.solveCaptchaHandler = handler;
   }
   /**
    * A private function to process MB's captcha and get Session ID.
@@ -672,11 +702,9 @@ var MB = class {
       })
     });
     const captchaRes = await captchaReq.body.json();
-    let captchaContent = "";
-    if (this.keyApi) {
-      captchaContent = await this.solveCAPTCHAwithFreeOcrApi(captchaRes.imageString);
-    } else {
-      captchaContent = await this.solveCAPTCHAwithLocal(captchaRes.imageString);
+    const captchaContent = this.solveCaptchaHandler ? await this.solveCaptchaHandler(captchaRes.imageString) : await defaultSolveCaptcha(captchaRes.imageString);
+    if (captchaContent.length !== 6 || !/^[a-z0-9]+$/i.test(captchaContent)) {
+      return this.login();
     }
     if (!this.wasmData) {
       const wasm = await this.client.request({
@@ -724,52 +752,6 @@ var MB = class {
    */
   getRefNo() {
     return `${this.username}-${getTimeNow()}`;
-  }
-  async solveCAPTCHAwithFreeOcrApi(base64img) {
-    const formdata = new FormData();
-    formdata.append("apikey", this.keyApi);
-    formdata.append("base64Image", "data:image/png;base64," + base64img);
-    formdata.append("language", "eng");
-    formdata.append("OCREngine", "2");
-    const requestOptions = {
-      method: "POST",
-      body: formdata,
-      redirect: "follow"
-    };
-    const ocrRes = await fetch("https://api.ocr.space/parse/image", requestOptions);
-    if (ocrRes.status !== 200) {
-      throw new Error("l\u1ED7i api");
-    }
-    const jsonData = await ocrRes.json();
-    const captchaContent = (jsonData.ParsedResults[0]?.ParsedText || "").replaceAll("\n", "").replaceAll(" ", "");
-    return captchaContent;
-  }
-  /**
-   * giải captch
-   * @returns string
-   */
-  async solveCAPTCHAwithLocal(base64img) {
-    let captchaBuffer = Buffer.from(base64img, "base64");
-    const captchaImagePRCLine1 = await (0, import_replace_color.default)({
-      image: captchaBuffer,
-      colors: {
-        type: "hex",
-        targetColor: "#847069",
-        replaceColor: "#ffffff"
-      }
-    });
-    captchaBuffer = await captchaImagePRCLine1.getBufferAsync(import_jimp.default.MIME_PNG);
-    const captchaImagePRCLine2 = await (0, import_replace_color.default)({
-      image: captchaBuffer,
-      colors: {
-        type: "hex",
-        targetColor: "#ffe3d5",
-        replaceColor: "#ffffff"
-      }
-    });
-    captchaBuffer = await captchaImagePRCLine2.getBufferAsync(import_jimp.default.MIME_PNG);
-    const captchaContent = (await (0, import_node_tesseract_ocr.recognize)(captchaBuffer, defaultTesseractConfig)).replaceAll("\n", "").replaceAll(" ", "").slice(0, -1);
-    return captchaContent;
   }
   async mbRequest(data) {
     if (!this.sessionId) {
