@@ -164,6 +164,11 @@ export default class MB {
         // captchaContent = await this.solveCAPTCHAwithFreeOcrApi(captchaRes.imageString);
         const captchaContent = this.solveCaptchaHandler ? await this.solveCaptchaHandler(captchaRes.imageString) : await defaultSolveCaptcha(captchaRes.imageString);
 
+        // Check valid captcha by normal rule-base
+        if ((captchaContent.length !== 6) || !(/^[a-z0-9]+$/i.test(captchaContent))) {
+            return this.login();
+        }
+
         // wasm
         if (!this.wasmData) {
             const wasm = await this.client.request({
